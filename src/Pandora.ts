@@ -23,6 +23,14 @@ import { IObjectStore } from "./pkg/object-store/objet-store-api";
 import { join } from "path";
 import { readdir } from "fs/promises";
 
+//import pkg from "http";
+//const http = pkg;
+
+import * as http from "http";
+import { createWriteStream } from "fs";
+
+//import { cookFile } from "./cookFile.mjs";
+
 @injectable()
 export class Pandora {
   /** Is the bot allowed to resume a record ? */
@@ -324,6 +332,7 @@ export class Pandora {
       }
     }
     await c.sendMessage(`Recording session ended successfully !`);
+    await this.cookFile(currentState.recordsIds[0]);
 
     this.logger.info(`Recording ended successfully!`);
     await c.signalState(RECORD_EVENT.STOPPED, {
@@ -406,5 +415,46 @@ export class Pandora {
     // If some files are found, upload them on the storage backend
     if (files.length === 0) return 0;
     return await this.objectStore.create(...files);
+  }
+
+  /**
+   * Attempt to cook the audio files matching the provided ids
+   * @param recordsIds
+   * @return name of the cooked file
+   * @throws Error if the cooking failed
+   */
+  cookFile(recordingId: string): Promise<void> {
+    const url = `http://localhost:3004/${recordingId}`;
+    const outputPath = `cooked_recordings/${recordingId}.ogg`;
+
+    return new Promise<void>((resolve, reject) => {
+      http
+        .get(url, (response) => {
+          if (response.statusCode === 200) {
+            const file = createWriteStream(outputPath);
+            response.pipe(file);
+            file.on("finish", () => {
+              console.log(`File downloaded to ${outputPath}`);
+              resolve();
+            });
+            file.on("close", () => {
+              console.log("File closed");
+            });
+          } else {
+            console.error(
+              `Failed to download file, status code: ${response.statusCode}`
+            );
+            reject(
+              new Error(
+                `Failed to download file, status code: ${response.statusCode}`
+              )
+            );
+          }
+        })
+        .on("error", (error) => {
+          console.error(`Error downloading file: ${error.message}`);
+          reject(error);
+        });
+    });
   }
 }

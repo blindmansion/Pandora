@@ -35,3 +35,4 @@ coverage
 .pnp.*
 
 pandora_recordings
+deepgram_test
