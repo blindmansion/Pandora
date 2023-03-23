@@ -27,7 +27,7 @@ import { readdir } from "fs/promises";
 //const http = pkg;
 
 import * as http from "http";
-import { createWriteStream } from "fs";
+import { createWriteStream, existsSync, mkdirSync } from "fs";
 
 //import { cookFile } from "./cookFile.mjs";
 
@@ -324,15 +324,16 @@ export class Pandora {
         const nbFilesUploaded = await this.saveInObjectStore(
           currentState.recordsIds
         );
-        if (nbFilesUploaded === 0)
+        if (nbFilesUploaded === 0) {
           this.logger.warn(`Could not find any record files to upload`);
+        }
         await c.sendMessage(`Records uploaded !`);
+        await this.cookFile(currentState.recordsIds[0]);
       } catch (e) {
         this.logger.error(`Error while uploading records files`, e);
       }
     }
     await c.sendMessage(`Recording session ended successfully !`);
-    await this.cookFile(currentState.recordsIds[0]);
 
     this.logger.info(`Recording ended successfully!`);
     await c.signalState(RECORD_EVENT.STOPPED, {
@@ -424,8 +425,12 @@ export class Pandora {
    * @throws Error if the cooking failed
    */
   cookFile(recordingId: string): Promise<void> {
-    const url = `http://localhost:3004/${recordingId}`;
-    const outputPath = `cooked_recordings/${recordingId}.ogg`;
+    const url = `http://pandora-cooking-server:3004/${recordingId}`;
+    const path = `cooked`;
+    if (!existsSync(path)) {
+      mkdirSync(path);
+    }
+    const outputPath = `${path}/${recordingId}.ogg`;
 
     return new Promise<void>((resolve, reject) => {
       http
